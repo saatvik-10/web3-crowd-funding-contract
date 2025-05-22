@@ -7,6 +7,7 @@ contract CrowdFunding {
     uint256 public goal;
     uint256 public deadline;
     address public owner;
+    bool public paused;
 
     enum CampaignState {
         Active,
@@ -41,6 +42,11 @@ contract CrowdFunding {
         _;
     }
 
+    modifier notPaused() {
+        require(!paused, "Contract is paused!");
+        _;
+    }
+
     constructor(
         string memory _name,
         string memory _description,
@@ -69,7 +75,7 @@ contract CrowdFunding {
         }
     }
 
-    function fund(uint256 _tierIndex) public payable campaignOpen {
+    function fund(uint256 _tierIndex) public payable campaignOpen notPaused {
         require(_tierIndex < tiers.length, "Tier does not exist!");
         require(msg.value == tiers[_tierIndex].amount, "Incorrect Amount!");
 
@@ -111,7 +117,7 @@ contract CrowdFunding {
 
     function refund() public {
         checkAndUpdateCampaignState();
-        // require(state == CampaignState.Failed, "Refunds not available");
+        require(state == CampaignState.Failed, "Refunds not available");
         uint256 amount = backers[msg.sender].totalContribution;
         require(amount > 0, "No contribution to refund");
 
@@ -125,5 +131,27 @@ contract CrowdFunding {
         returns (bool)
     {
         return backers[_backer].fundedTier[_tierIndex];
+    }
+
+    function getTiers() public view returns (Tier[] memory) {
+        return tiers;
+    }
+
+    function togglePause() public onlyOwner {
+        paused = !paused;
+    }
+
+    function getCampaignStatus() public view returns (CampaignState) {
+        if (state == CampaignState.Active && block.timestamp > deadline) {
+            return
+                address(this).balance >= goal
+                    ? CampaignState.Successful
+                    : CampaignState.Failed;
+        }
+        return state;
+    }
+
+    function extendDeadline(uint256 _daysToAdd) public onlyOwner campaignOpen {
+        deadline += _daysToAdd * 1 days;
     }
 }
