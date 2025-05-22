@@ -22,7 +22,14 @@ contract CrowdFunding {
         uint256 backers;
     }
 
+    struct Backer {
+        uint256 totalContribution;
+        mapping(uint256 => bool) fundedTier;
+    }
+
     Tier[] public tiers;
+
+    mapping(address => Backer) public backers;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "You are not the owner");
@@ -67,6 +74,8 @@ contract CrowdFunding {
         require(msg.value == tiers[_tierIndex].amount, "Incorrect Amount!");
 
         tiers[_tierIndex].backers++;
+        backers[msg.sender].totalContribution += msg.value;
+        backers[msg.sender].fundedTier[_tierIndex] = true;
 
         checkAndUpdateCampaignState();
     }
@@ -98,5 +107,23 @@ contract CrowdFunding {
 
     function getContractBalance() public view returns (uint256) {
         return address(this).balance;
+    }
+
+    function refund() public {
+        checkAndUpdateCampaignState();
+        // require(state == CampaignState.Failed, "Refunds not available");
+        uint256 amount = backers[msg.sender].totalContribution;
+        require(amount > 0, "No contribution to refund");
+
+        backers[msg.sender].totalContribution = 0;
+        payable(msg.sender).transfer(amount);
+    }
+
+    function hasFundedTier(address _backer, uint256 _tierIndex)
+        public
+        view
+        returns (bool)
+    {
+        return backers[_backer].fundedTier[_tierIndex];
     }
 }
